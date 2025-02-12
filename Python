@@ -1,0 +1,55 @@
+import os
+import replicate
+import cv2
+import moviepy.editor as mp
+
+# Set your Replicate API key
+os.environ["REPLICATE_API_TOKEN"] = "your_api_key_here"
+
+# Function to generate images from text
+def generate_frames(prompt, num_frames=30, output_folder="frames"):
+    os.makedirs(output_folder, exist_ok=True)
+    
+    for i in range(num_frames):
+        output = replicate.run(
+            "stability-ai/stable-diffusion",
+            input={"prompt": f"{prompt}, cinematic, 4K", "num_inference_steps": 50}
+        )
+        image_url = output[0]
+        image_path = f"{output_folder}/frame_{i:03d}.png"
+        os.system(f"wget {image_url} -O {image_path}")  # Download image
+        print(f"Generated frame {i+1}/{num_frames}")
+
+# Function to create a video from frames
+def create_video(output_folder="frames", video_name="output.mp4", fps=10):
+    images = [img for img in sorted(os.listdir(output_folder)) if img.endswith(".png")]
+    if not images:
+        print("No frames found!")
+        return
+
+    frame = cv2.imread(os.path.join(output_folder, images[0]))
+    height, width, _ = frame.shape
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
+
+    for img in images:
+        frame = cv2.imread(os.path.join(output_folder, img))
+        video.write(frame)
+
+    video.release()
+    print(f"Video saved as {video_name}")
+
+# Function to add background music
+def add_music(video_name="output.mp4", music_path="music.mp3", final_output="final_video.mp4"):
+    video = mp.VideoFileClip(video_name)
+    audio = mp.AudioFileClip(music_path).subclip(0, video.duration)
+    video = video.set_audio(audio)
+    video.write_videofile(final_output, codec="libx264", fps=10)
+    print(f"Final video saved as {final_output}")
+
+# Run the generator
+prompt = "A futuristic city at night with neon lights"
+generate_frames(prompt, num_frames=30)
+create_video()
+add_music()
